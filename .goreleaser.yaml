@@ -1,0 +1,52 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - formats: [tar.gz]
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+release:
+  prerelease: auto
+
+universal_binaries:
+  - replace: true
+
+brews:
+  - name: gch
+    repository:
+      owner: reckerp
+      name: homebrew-tap
+    homepage: "https://github.com/reckerp/gch"
+    description: "gch is an intelligent Git branch checkout tool that provides fast and intuitive branch switching. It uses fuzzy matching to find branches based on partial names, making it easy to switch between branches without typing the full name."
+    test: |
+      system "#{bin}/gch", "--help"
+    install: |
+      bin.install "gch"
+    commit_author:
+      name: reckerp
+      email: git@recker.io
+
+checksum:
+  name_template: "checksums.txt"
