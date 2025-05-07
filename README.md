@@ -10,6 +10,15 @@ A powerful Git branch checkout tool that provides fast and intuitive branch swit
 
 ## Installation
 
+- Using Homebrew:
+
+```sh
+brew tap reckerp/tap
+brew install gch
+```
+
+- Using `go install`:
+
 ```bash
 go install github.com/reckerp/gch@latest
 ```
@@ -54,4 +63,6 @@ make install
 ```
 
 ## License
+
 MIT
+
