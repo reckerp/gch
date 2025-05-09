@@ -12,6 +12,7 @@ var (
 	debugMode    bool
 	createBranch bool
 	force        bool
+	stash        bool
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
@@ -27,6 +28,7 @@ Features:
   • Remote branch tracking
   • Smart branch creation
   • Force checkout support
+  • Automatic stashing
 
 Examples:
   # Checkout a branch using partial name
@@ -40,6 +42,10 @@ Examples:
   # Force checkout (discard local changes)
   gch -f prod         # Force checkout branch containing 'prod'
   gch -b -f feature   # Force create and checkout new branch
+  
+  # Always stash changes before checkout
+  gch -s prod         # Stash changes and checkout branch containing 'prod'
+  gch -s -b feature   # Stash changes and create/checkout new branch
   
   # Show interactive branch selector
   gch                 # List all branches for interactive selection`,
@@ -66,7 +72,7 @@ Examples:
 			}
 
 			// Otherwise use smart checkout with pattern
-			err := git.SmartCheckout(pattern, createBranch, force, debugMode)
+			err := git.SmartCheckout(pattern, createBranch, force, stash, debugMode)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
@@ -79,4 +85,5 @@ func init() {
 	RootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "Enable debug output for branch matching process")
 	RootCmd.Flags().BoolVarP(&createBranch, "branch", "b", false, "Create and checkout a new branch with the given name")
 	RootCmd.Flags().BoolVarP(&force, "force", "f", false, "Force checkout, discarding any local changes")
+	RootCmd.Flags().BoolVarP(&stash, "stash", "s", false, "Always stash changes before checkout")
 }

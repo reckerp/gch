@@ -46,7 +46,7 @@ func execGitCommandWithOutput(args ...string) (string, error) {
 }
 
 // SmartCheckout implements smart branch checkout functionality
-func SmartCheckout(pattern string, createBranch bool, force bool, debug bool) error {
+func SmartCheckout(pattern string, createBranch bool, force bool, stash bool, debug bool) error {
 	if pattern == "" {
 		// If no pattern provided, switch to the previous branch
 		return execGitCommand("checkout", "-")
@@ -136,9 +136,13 @@ func SmartCheckout(pattern string, createBranch bool, force bool, debug bool) er
 			// Local branch
 			fmt.Printf("Checking out local branch: %s\n", bestMatch.name)
 
-			// Only check for conflicts if not forcing
-			if !force {
-				// Try the checkout and handle any errors
+			// If stash flag is set, always stash changes
+			if stash {
+				if err := stashChanges(); err != nil {
+					return fmt.Errorf("failed to stash changes: %w", err)
+				}
+			} else if !force {
+				// Only check for conflicts if not forcing and not stashing
 				output, err := execGitCommandWithOutput("checkout", bestMatch.name)
 				if err != nil {
 					if strings.Contains(output, "error: Your local changes to the following files would be overwritten by checkout") ||
@@ -172,9 +176,13 @@ func SmartCheckout(pattern string, createBranch bool, force bool, debug bool) er
 			// Remote branch
 			fmt.Printf("Creating local branch from remote: %s\n", bestMatch.name)
 
-			// Only check for conflicts if not forcing
-			if !force {
-				// Try the checkout and handle any errors
+			// If stash flag is set, always stash changes
+			if stash {
+				if err := stashChanges(); err != nil {
+					return fmt.Errorf("failed to stash changes: %w", err)
+				}
+			} else if !force {
+				// Only check for conflicts if not forcing and not stashing
 				output, err := execGitCommandWithOutput("checkout", "-b", bestMatch.name, "origin/"+bestMatch.name)
 				if err != nil {
 					if strings.Contains(output, "error: Your local changes to the following files would be overwritten by checkout") ||
