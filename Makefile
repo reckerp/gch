@@ -17,6 +17,7 @@ deps:
 install: build
 	@echo "Installing $(BINARY_NAME) to $(INSTALL_DIR)..."
 	@mkdir -p $(INSTALL_DIR)
+	@rm -f $(INSTALL_DIR)/$(BINARY_NAME)
 	@cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/
 	@echo "Installation complete. Make sure $(INSTALL_DIR) is in your PATH."
 

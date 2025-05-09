@@ -315,3 +315,73 @@ func getCurrentBranch() (string, error) {
 
 	return strings.TrimSpace(string(output)), nil
 }
+
+// stashPromptModel represents the model for the stash prompt
+type stashPromptModel struct {
+	choices  []string
+	cursor   int
+	selected bool
+}
+
+// createStashPromptModel creates a new stash prompt model
+func createStashPromptModel() *stashPromptModel {
+	return &stashPromptModel{
+		choices: []string{
+			"Stash changes and continue",
+			"Abort checkout",
+		},
+		cursor:   0,
+		selected: false,
+	}
+}
+
+// Init initializes the model
+func (m *stashPromptModel) Init() tea.Cmd {
+	return nil
+}
+
+// Update handles messages and updates the model
+func (m *stashPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.choices)-1 {
+				m.cursor++
+			}
+		case "enter":
+			m.selected = true
+			return m, tea.Quit
+		case "q", "esc":
+			m.cursor = 1 // Select "Abort checkout"
+			m.selected = true
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
+// View renders the model
+func (m *stashPromptModel) View() string {
+	if m.selected {
+		return ""
+	}
+
+	s := "You have uncommitted changes that would be overwritten.\n"
+	s += "What would you like to do?\n\n"
+
+	for i, choice := range m.choices {
+		cursor := " "
+		if m.cursor == i {
+			cursor = ">"
+		}
+		s += fmt.Sprintf("%s %s\n", cursor, choice)
+	}
+
+	s += "\nPress Enter to confirm, q or Esc to abort"
+	return s
+}

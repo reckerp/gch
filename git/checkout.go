@@ -17,6 +17,34 @@ func IsGitRepo() bool {
 	return err == nil
 }
 
+// promptForStash shows an interactive prompt asking the user if they want to stash changes
+func promptForStash() (bool, error) {
+	model := createStashPromptModel()
+	p := tea.NewProgram(model)
+	result, err := p.Run()
+	if err != nil {
+		return false, err
+	}
+
+	// The result is the model, and we can check which option was selected
+	if m, ok := result.(*stashPromptModel); ok {
+		return m.cursor == 0, nil // true if "Stash changes" was selected
+	}
+	return false, errors.New("unexpected result type from stash prompt")
+}
+
+// stashChanges stashes the current changes
+func stashChanges() error {
+	return execGitCommand("stash", "push", "-m", "Auto-stashed by gch")
+}
+
+// execGitCommandWithOutput executes a git command and returns its output
+func execGitCommandWithOutput(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
 // SmartCheckout implements smart branch checkout functionality
 func SmartCheckout(pattern string, createBranch bool, force bool, debug bool) error {
 	if pattern == "" {
@@ -107,6 +135,34 @@ func SmartCheckout(pattern string, createBranch bool, force bool, debug bool) er
 		if bestMatch.isLocal {
 			// Local branch
 			fmt.Printf("Checking out local branch: %s\n", bestMatch.name)
+
+			// Only check for conflicts if not forcing
+			if !force {
+				// Try the checkout and handle any errors
+				output, err := execGitCommandWithOutput("checkout", bestMatch.name)
+				if err != nil {
+					if strings.Contains(output, "error: Your local changes to the following files would be overwritten by checkout") ||
+						strings.Contains(output, "error: The following untracked working tree files would be overwritten by checkout") {
+						// Checkout would fail, ask about stashing
+						stash, err := promptForStash()
+						if err != nil {
+							return err
+						}
+						if stash {
+							if err := stashChanges(); err != nil {
+								return fmt.Errorf("failed to stash changes: %w", err)
+							}
+							// Try the checkout again after stashing
+							return execGitCommand("checkout", bestMatch.name)
+						} else {
+							return errors.New("checkout aborted")
+						}
+					}
+					return fmt.Errorf("git checkout failed: %s", output)
+				}
+				return nil
+			}
+
 			args := []string{"checkout", bestMatch.name}
 			if force {
 				args = append(args, "-f")
@@ -115,6 +171,34 @@ func SmartCheckout(pattern string, createBranch bool, force bool, debug bool) er
 		} else {
 			// Remote branch
 			fmt.Printf("Creating local branch from remote: %s\n", bestMatch.name)
+
+			// Only check for conflicts if not forcing
+			if !force {
+				// Try the checkout and handle any errors
+				output, err := execGitCommandWithOutput("checkout", "-b", bestMatch.name, "origin/"+bestMatch.name)
+				if err != nil {
+					if strings.Contains(output, "error: Your local changes to the following files would be overwritten by checkout") ||
+						strings.Contains(output, "error: The following untracked working tree files would be overwritten by checkout") {
+						// Checkout would fail, ask about stashing
+						stash, err := promptForStash()
+						if err != nil {
+							return err
+						}
+						if stash {
+							if err := stashChanges(); err != nil {
+								return fmt.Errorf("failed to stash changes: %w", err)
+							}
+							// Try the checkout again after stashing
+							return execGitCommand("checkout", "-b", bestMatch.name, "origin/"+bestMatch.name)
+						} else {
+							return errors.New("checkout aborted")
+						}
+					}
+					return fmt.Errorf("git checkout failed: %s", output)
+				}
+				return nil
+			}
+
 			args := []string{"checkout", "-b", bestMatch.name, "origin/" + bestMatch.name}
 			if force {
 				args = append(args, "-f")
