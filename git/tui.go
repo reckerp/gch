@@ -11,14 +11,16 @@ import (
 
 // Model represents the TUI model for branch selection
 type branchModel struct {
-	branches    []Branch
-	filteredIdx []int
-	selected    int
-	query       string
-	width       int
-	height      int
-	showRemotes bool
-	debugMode   bool
+	branches        []Branch
+	filteredIdx     []int
+	selected        int
+	query           string
+	width           int
+	height          int
+	showRemotes     bool
+	debugMode       bool
+	showStashPrompt bool
+	stashPrompt     *stashPromptModel
 }
 
 // Branch represents a git branch
@@ -109,6 +111,45 @@ func (m branchModel) Init() tea.Cmd {
 
 // Update handles user input
 func (m branchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// If showing stash prompt, handle it first
+	if m.showStashPrompt {
+		if m.stashPrompt == nil {
+			m.stashPrompt = createStashPromptModel()
+		}
+
+		model, cmd := m.stashPrompt.Update(msg)
+		if model, ok := model.(*stashPromptModel); ok {
+			m.stashPrompt = model
+			if model.selected {
+				// User made a choice
+				if model.cursor == 0 {
+					// User chose to stash
+					return m, tea.Sequence(
+						tea.ExecProcess(exec.Command("git", "stash", "push", "-m", "Auto-stashed by gch"), func(err error) tea.Msg {
+							if err != nil {
+								return err
+							}
+							// After stashing, try the checkout again
+							selectedBranch := m.branches[m.filteredIdx[m.selected]]
+							var args []string
+							if selectedBranch.IsLocal {
+								args = []string{"checkout", selectedBranch.Name}
+							} else {
+								args = []string{"checkout", "-b", selectedBranch.Name, "origin/" + selectedBranch.Name}
+							}
+							return exec.Command("git", args...)
+						}),
+						tea.Quit,
+					)
+				} else {
+					// User chose to abort
+					return m, tea.Quit
+				}
+			}
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -118,7 +159,35 @@ func (m branchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if len(m.filteredIdx) > 0 {
 				selectedBranch := m.branches[m.filteredIdx[m.selected]]
-				return m, execGitForTUI(selectedBranch)
+				var args []string
+				if selectedBranch.IsLocal {
+					args = []string{"checkout", selectedBranch.Name}
+				} else {
+					args = []string{"checkout", "-b", selectedBranch.Name, "origin/" + selectedBranch.Name}
+				}
+
+				// Try the checkout to see if it would fail
+				cmd := exec.Command("git", args...)
+				output, err := cmd.CombinedOutput()
+				if err != nil {
+					errorMsg := string(output)
+					if strings.Contains(errorMsg, "error: Your local changes to the following files would be overwritten by checkout") ||
+						strings.Contains(errorMsg, "error: The following untracked working tree files would be overwritten by checkout") {
+						// Checkout would fail, show stash prompt
+						m.showStashPrompt = true
+						return m, nil
+					}
+					// If it's a different error, return it
+					return m, tea.Sequence(
+						tea.ExecProcess(exec.Command("git", args...), func(err error) tea.Msg {
+							return err
+						}),
+						tea.Quit,
+					)
+				}
+
+				// If checkout succeeded, we're done
+				return m, tea.Quit
 			}
 
 		case "up", "k":
@@ -150,6 +219,13 @@ func (m branchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the UI
 func (m branchModel) View() string {
+	if m.showStashPrompt {
+		if m.stashPrompt == nil {
+			m.stashPrompt = createStashPromptModel()
+		}
+		return m.stashPrompt.View()
+	}
+
 	var sb strings.Builder
 
 	// Show search query
@@ -223,12 +299,36 @@ func execGitForTUI(branch Branch) tea.Cmd {
 		args = []string{"checkout", "-b", branch.Name, "origin/" + branch.Name}
 	}
 
-	return tea.Sequence(
-		tea.ExecProcess(exec.Command("git", args...), func(err error) tea.Msg {
-			return nil
-		}),
-		tea.Quit,
-	)
+	// First try the checkout to see if it would fail
+	cmd := exec.Command("git", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		errorMsg := string(output)
+		if strings.Contains(errorMsg, "error: Your local changes to the following files would be overwritten by checkout") ||
+			strings.Contains(errorMsg, "error: The following untracked working tree files would be overwritten by checkout") {
+			// Checkout would fail, ask about stashing
+			return tea.Sequence(
+				tea.ExecProcess(exec.Command("git", "stash", "push", "-m", "Auto-stashed by gch"), func(err error) tea.Msg {
+					if err != nil {
+						return err
+					}
+					// After stashing, try the checkout again
+					return exec.Command("git", args...)
+				}),
+				tea.Quit,
+			)
+		}
+		// If it's a different error, return it
+		return tea.Sequence(
+			tea.ExecProcess(exec.Command("git", args...), func(err error) tea.Msg {
+				return err
+			}),
+			tea.Quit,
+		)
+	}
+
+	// If checkout succeeded, we're done
+	return tea.Quit
 }
 
 // ShowInteractiveBranchSelector shows an interactive branch selector
