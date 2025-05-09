@@ -7,6 +7,9 @@ A powerful Git branch checkout tool that provides fast and intuitive branch swit
 - Fuzzy branch name matching
 - Interactive branch selector
 - Remote branch tracking
+- Smart branch creation
+- Force checkout support
+- Automatic stashing
 
 ## Installation
 
@@ -40,6 +43,10 @@ gch -b feat/user    # Create and checkout new branch 'feat/user'
 gch -f prod         # Force checkout branch containing 'prod'
 gch -b -f feature   # Force create and checkout new branch
 
+# Always stash changes before checkout
+gch -s prod         # Stash changes and checkout branch containing 'prod'
+gch -s -b feature   # Stash changes and create/checkout new branch
+
 # Show interactive branch selector
 gch                 # List all branches for interactive selection
 ```
@@ -48,6 +55,7 @@ gch                 # List all branches for interactive selection
 
 - `-b, --branch`: Create and checkout a new branch with the given name
 - `-f, --force`: Force checkout, discarding any local changes
+- `-s, --stash`: Always stash changes before checkout
 - `--debug`: Enable debug output for branch matching process
 
 ## Development
