@@ -1,5 +1,8 @@
 # gch - Smart Git Branch Checkout Tool
 
+> [!WARNING]
+> This repository is archived. A new and enhanced version of this tool is available under https://github.com/reckerp/gx
+
 A powerful Git branch checkout tool that provides fast and intuitive branch switching with fuzzy matching capabilities.
 
 ## Features
